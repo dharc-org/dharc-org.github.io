@@ -45,21 +45,54 @@
             border-radius: 3px;
             font-size: 0.8em;
         }
+        #loading {
+            text-align: center;
+            color: #666;
+        }
+        #error {
+            text-align: center;
+            color: red;
+        }
     </style>
 </head>
 <body>
     <h1 id="org-title">Organization Repositories</h1>
+    <div id="loading">Loading repositories...</div>
+    <div id="error" style="display: none;"></div>
     <ul id="repo-list" class="repo-list"></ul>
 
     <script>
         const organizationName = 'dharc-org';
         const repoList = document.getElementById('repo-list');
         const orgTitle = document.getElementById('org-title');
+        const loadingIndicator = document.getElementById('loading');
+        const errorIndicator = document.getElementById('error');
 
         async function fetchRepositories() {
+            const cacheKey = `github-repos-${organizationName}`;
+            const cachedData = localStorage.getItem(cacheKey);
+            const cacheTimestamp = localStorage.getItem(`${cacheKey}-timestamp`);
+
+            // Check if cached data exists and is less than 24 hours old
+            if (cachedData && cacheTimestamp) {
+                const currentTime = new Date().getTime();
+                const cachedTime = parseInt(cacheTimestamp);
+                
+                if (currentTime - cachedTime < 24 * 60 * 60 * 1000) {
+                    // Use cached data
+                    const repositories = JSON.parse(cachedData);
+                    renderRepositories(repositories);
+                    return;
+                }
+            }
+
             try {
-                // First, fetch the list of repositories
-                const reposResponse = await fetch(`https://api.github.com/orgs/${organizationName}/repos`);
+                // Show loading indicator
+                loadingIndicator.style.display = 'block';
+                errorIndicator.style.display = 'none';
+                repoList.innerHTML = '';
+
+                const reposResponse = await fetch(`https://api.github.com/users/${organizationName}/repos?per_page=100`);
                 
                 if (!reposResponse.ok) {
                     throw new Error('Failed to fetch repositories');
@@ -67,90 +100,74 @@
                 
                 const repositories = await reposResponse.json();
                 
-                // Update organization title
-                orgTitle.textContent = `${organizationName} Repositories`;
-                
-                // Fetch topics for each repository
-                const repositoriesWithTopics = await Promise.all(
-                    repositories.map(async (repo) => {
-                        try {
-                            const topicsResponse = await fetch(`https://api.github.com/repos/${organizationName}/${repo.name}/topics`, {
-                                headers: {
-                                    'Accept': 'application/vnd.github.v3+json'
-                                }
-                            });
-                            
-                            const topicsData = topicsResponse.ok ? await topicsResponse.json() : { names: [] };
-                            
-                            return {
-                                ...repo,
-                                topics: topicsData.names || []
-                            };
-                        } catch (error) {
-                            console.error(`Error fetching topics for ${repo.name}:`, error);
-                            return {
-                                ...repo,
-                                topics: []
-                            };
-                        }
-                    })
-                );
-                
-                // Populate repository list
-                repositoriesWithTopics.forEach(repo => {
-                    const repoItem = document.createElement('li');
-                    repoItem.className = 'repo-item';
-                    
-                    // Repository name and link
-                    const nameLink = document.createElement('div');
-                    nameLink.className = 'repo-name';
-                    const link = document.createElement('a');
-                    link.href = repo.html_url;
-                    link.textContent = repo.name;
-                    link.target = '_blank';
-                    nameLink.appendChild(link);
-                    
-                    // Repository description
-                    const description = document.createElement('div');
-                    description.className = 'repo-description';
-                    description.textContent = repo.description || 'No description available';
-                    
-                    // Additional links
-                    const linksDiv = document.createElement('div');
-                    linksDiv.className = 'repo-links';
-                    
-                    // GitHub Pages link (if available)
-                    if (repo.has_pages) {
-                        const pagesLink = document.createElement('a');
-                        pagesLink.href = `https://${organizationName}.github.io/${repo.name}/`;
-                        pagesLink.textContent = 'GitHub Pages';
-                        pagesLink.target = '_blank';
-                        linksDiv.appendChild(pagesLink);
-                    }
-                    
-                    // Topics
-                    const topicsDiv = document.createElement('div');
-                    topicsDiv.className = 'repo-topics';
-                    
-                    repo.topics.forEach(topic => {
-                        const topicTag = document.createElement('span');
-                        topicTag.className = 'topic-tag';
-                        topicTag.textContent = topic;
-                        topicsDiv.appendChild(topicTag);
-                    });
-                    
-                    // Append all elements
-                    repoItem.appendChild(nameLink);
-                    repoItem.appendChild(description);
-                    repoItem.appendChild(linksDiv);
-                    repoItem.appendChild(topicsDiv);
-                    
-                    repoList.appendChild(repoItem);
-                });
+                // Cache the repositories
+                localStorage.setItem(cacheKey, JSON.stringify(repositories));
+                localStorage.setItem(`${cacheKey}-timestamp`, new Date().getTime().toString());
+
+                renderRepositories(repositories);
             } catch (error) {
                 console.error('Error fetching repositories:', error);
-                repoList.innerHTML = `<li>Error: ${error.message}</li>`;
+                
+                // Show error message
+                loadingIndicator.style.display = 'none';
+                errorIndicator.style.display = 'block';
+                errorIndicator.textContent = `Error: ${error.message}. Please try again later.`;
             }
+        }
+
+        function renderRepositories(repositories) {
+            // Hide loading indicator
+            loadingIndicator.style.display = 'none';
+            
+            // Update organization title
+            orgTitle.textContent = `${organizationName} Repositories (${repositories.length})`;
+            
+            // Clear any existing repositories
+            repoList.innerHTML = '';
+            
+            // Populate repository list
+            repositories.forEach(repo => {
+                const repoItem = document.createElement('li');
+                repoItem.className = 'repo-item';
+                
+                // Repository name and link
+                const nameLink = document.createElement('div');
+                nameLink.className = 'repo-name';
+                const link = document.createElement('a');
+                link.href = repo.html_url;
+                link.textContent = repo.name;
+                link.target = '_blank';
+                nameLink.appendChild(link);
+                
+                // Repository description
+                const description = document.createElement('div');
+                description.className = 'repo-description';
+                description.textContent = repo.description || 'No description available';
+                
+                // Additional links
+                const linksDiv = document.createElement('div');
+                linksDiv.className = 'repo-links';
+                
+                // GitHub Pages link (if available)
+                if (repo.has_pages) {
+                    const pagesLink = document.createElement('a');
+                    pagesLink.href = `https://${organizationName}.github.io/${repo.name}/`;
+                    pagesLink.textContent = 'GitHub Pages';
+                    pagesLink.target = '_blank';
+                    linksDiv.appendChild(pagesLink);
+                }
+                
+                // Append all elements
+                repoItem.appendChild(nameLink);
+                repoItem.appendChild(description);
+                
+                // Only add links div if it has content
+                if (linksDiv.children.length > 0) {
+                    repoItem.appendChild(linksDiv);
+                }
+                
+                repoList.appendChild(repoItem);
+            });
         }
 
         // Fetch repositories when the page loads
