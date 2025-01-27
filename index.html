@@ -27,9 +27,23 @@
         }
         .repo-description {
             color: #666;
+            margin-bottom: 10px;
         }
         .repo-links {
             margin-top: 10px;
+        }
+        .repo-topics {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .topic-tag {
+            background-color: #0366d6;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 0.8em;
         }
     </style>
 </head>
@@ -39,26 +53,52 @@
 
     <script>
         // Replace 'YOUR_ORGANIZATION_NAME' with the actual organization name
-        const organizationName = 'dharc-org';
+        const organizationName = 'YOUR_ORGANIZATION_NAME';
         const repoList = document.getElementById('repo-list');
         const orgTitle = document.getElementById('org-title');
 
         async function fetchRepositories() {
             try {
-                // GitHub API endpoint for organization repositories
-                const response = await fetch(`https://api.github.com/orgs/${organizationName}/repos`);
+                // First, fetch the list of repositories
+                const reposResponse = await fetch(`https://api.github.com/orgs/${organizationName}/repos`);
                 
-                if (!response.ok) {
+                if (!reposResponse.ok) {
                     throw new Error('Failed to fetch repositories');
                 }
                 
-                const repositories = await response.json();
+                const repositories = await reposResponse.json();
                 
                 // Update organization title
                 orgTitle.textContent = `${organizationName} Repositories`;
                 
+                // Fetch topics for each repository
+                const repositoriesWithTopics = await Promise.all(
+                    repositories.map(async (repo) => {
+                        try {
+                            const topicsResponse = await fetch(`https://api.github.com/repos/${organizationName}/${repo.name}/topics`, {
+                                headers: {
+                                    'Accept': 'application/vnd.github.v3+json'
+                                }
+                            });
+                            
+                            const topicsData = topicsResponse.ok ? await topicsResponse.json() : { names: [] };
+                            
+                            return {
+                                ...repo,
+                                topics: topicsData.names || []
+                            };
+                        } catch (error) {
+                            console.error(`Error fetching topics for ${repo.name}:`, error);
+                            return {
+                                ...repo,
+                                topics: []
+                            };
+                        }
+                    })
+                );
+                
                 // Populate repository list
-                repositories.forEach(repo => {
+                repositoriesWithTopics.forEach(repo => {
                     const repoItem = document.createElement('li');
                     repoItem.className = 'repo-item';
                     
@@ -89,10 +129,22 @@
                         linksDiv.appendChild(pagesLink);
                     }
                     
+                    // Topics
+                    const topicsDiv = document.createElement('div');
+                    topicsDiv.className = 'repo-topics';
+                    
+                    repo.topics.forEach(topic => {
+                        const topicTag = document.createElement('span');
+                        topicTag.className = 'topic-tag';
+                        topicTag.textContent = topic;
+                        topicsDiv.appendChild(topicTag);
+                    });
+                    
                     // Append all elements
                     repoItem.appendChild(nameLink);
                     repoItem.appendChild(description);
                     repoItem.appendChild(linksDiv);
+                    repoItem.appendChild(topicsDiv);
                     
                     repoList.appendChild(repoItem);
                 });
