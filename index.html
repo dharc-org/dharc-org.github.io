@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Organization Repositories</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .repo-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .repo-item {
+            background-color: #f4f4f4;
+            margin-bottom: 10px;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .repo-name {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .repo-description {
+            color: #666;
+        }
+        .repo-links {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1 id="org-title">Organization Repositories</h1>
+    <ul id="repo-list" class="repo-list"></ul>
+
+    <script>
+        // Replace 'YOUR_ORGANIZATION_NAME' with the actual organization name
+        const organizationName = 'dharc-org';
+        const repoList = document.getElementById('repo-list');
+        const orgTitle = document.getElementById('org-title');
+
+        async function fetchRepositories() {
+            try {
+                // GitHub API endpoint for organization repositories
+                const response = await fetch(`https://api.github.com/orgs/${organizationName}/repos`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch repositories');
+                }
+                
+                const repositories = await response.json();
+                
+                // Update organization title
+                orgTitle.textContent = `${organizationName} Repositories`;
+                
+                // Populate repository list
+                repositories.forEach(repo => {
+                    const repoItem = document.createElement('li');
+                    repoItem.className = 'repo-item';
+                    
+                    // Repository name and link
+                    const nameLink = document.createElement('div');
+                    nameLink.className = 'repo-name';
+                    const link = document.createElement('a');
+                    link.href = repo.html_url;
+                    link.textContent = repo.name;
+                    link.target = '_blank';
+                    nameLink.appendChild(link);
+                    
+                    // Repository description
+                    const description = document.createElement('div');
+                    description.className = 'repo-description';
+                    description.textContent = repo.description || 'No description available';
+                    
+                    // Additional links
+                    const linksDiv = document.createElement('div');
+                    linksDiv.className = 'repo-links';
+                    
+                    // GitHub Pages link (if available)
+                    if (repo.has_pages) {
+                        const pagesLink = document.createElement('a');
+                        pagesLink.href = `https://${organizationName}.github.io/${repo.name}/`;
+                        pagesLink.textContent = 'GitHub Pages';
+                        pagesLink.target = '_blank';
+                        linksDiv.appendChild(pagesLink);
+                    }
+                    
+                    // Append all elements
+                    repoItem.appendChild(nameLink);
+                    repoItem.appendChild(description);
+                    repoItem.appendChild(linksDiv);
+                    
+                    repoList.appendChild(repoItem);
+                });
+            } catch (error) {
+                console.error('Error fetching repositories:', error);
+                repoList.innerHTML = `<li>Error: ${error.message}</li>`;
+            }
+        }
+
+        // Fetch repositories when the page loads
+        fetchRepositories();
+    </script>
+</body>
+</html>
